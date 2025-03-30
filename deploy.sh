@@ -41,7 +41,7 @@ fi
 log "Starting container: $CONTAINER_NAME"
 docker run -d \
     --name $CONTAINER_NAME \
-    -p $API_PORT:80 \
+    -p $API_PORT:8000 \
     -v $DATA_DIR:/app/data \
     -e DATABASE_PATH=/app/data/sms_gateway.db \
     -e API_KEY="${API_KEY:-your-secret-api-key}" \
