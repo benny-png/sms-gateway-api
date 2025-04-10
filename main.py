@@ -545,8 +545,17 @@ TOOL_MAPPING = {
 }
 
 # AI API Request and response models
+class ImageContent(BaseModel):
+    type: str = Field("image_url", description="Type of content, must be 'image_url'")
+    image_url: Dict[str, str] = Field(..., description="Image URL details")
+
+class TextContent(BaseModel):
+    type: str = Field("text", description="Type of content, must be 'text'")
+    text: str = Field(..., description="Text content")
+
 class AIRequest(BaseModel):
-    prompt: str = Field(..., description="The prompt to send to the AI model", example="What is the meaning of life?")
+    prompt: Optional[str] = Field(None, description="The text prompt to send to the AI model (legacy format)")
+    content: Optional[List[Union[ImageContent, TextContent, Dict[str, Any]]]] = Field(None, description="Content array for multimodal inputs")
     model: str = Field(default="google/gemini-1.5-pro-latest:free", description="The AI model to use", example="google/gemini-1.5-pro-latest:free")
     enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
 
@@ -560,20 +569,40 @@ class AIResponse(BaseModel):
     summary="Get a response from an AI model",
     description="""
     Sends a prompt to an AI model via OpenRouter and returns the response.
-    Supports tool calling using SerpAPI for Google search.
+    Supports tool calling using SerpAPI for Google search and image analysis.
     
-    Example curl command:
+    Example curl command for text prompt:
     ```
     curl -X POST "http://localhost:8000/api/ai/chat" \\
       -H "Content-Type: application/json" \\
       -d '{"prompt": "What is the capital of France?", "model": "google/gemini-1.5-pro-latest:free", "enable_tools": true}'
+    ```
+    
+    Example with image input:
+    ```
+    curl -X POST "http://localhost:8000/api/ai/chat" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "content": [
+          {
+            "type": "text",
+            "text": "What is in this image?"
+          },
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "https://example.com/image.jpg"
+            }
+          }
+        ],
+        "model": "google/gemini-1.5-pro-latest:free"
+      }'
     ```
     """
 )
 async def generate_ai_response(ai_request: AIRequest):
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"AI request {request_id}: model={ai_request.model}, enable_tools={ai_request.enable_tools}")
-    logger.debug(f"AI request {request_id} prompt: '{ai_request.prompt}'")
     
     start_time = time.time()
     
@@ -581,17 +610,39 @@ async def generate_ai_response(ai_request: AIRequest):
         site_url = os.getenv("SITE_URL", "https://sms-gateway-api.example.com")
         site_name = os.getenv("SITE_NAME", "SMS Gateway API")
         
-        # Initialize messages array with user's prompt
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant with access to search tools."
-            },
-            {
-                "role": "user",
-                "content": ai_request.prompt
-            }
-        ]
+        # Handle both legacy prompt format and new content format
+        if ai_request.content:
+            logger.info(f"AI request {request_id}: using multimodal content format")
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant with access to search tools and image analysis capabilities."
+                },
+                {
+                    "role": "user",
+                    "content": ai_request.content
+                }
+            ]
+            logger.debug(f"AI request {request_id} content: {json.dumps(ai_request.content)}")
+        elif ai_request.prompt:
+            logger.info(f"AI request {request_id}: using legacy text prompt format")
+            logger.debug(f"AI request {request_id} prompt: '{ai_request.prompt}'")
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant with access to search tools."
+                },
+                {
+                    "role": "user",
+                    "content": ai_request.prompt
+                }
+            ]
+        else:
+            logger.error(f"AI request {request_id}: no prompt or content provided")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either 'prompt' or 'content' must be provided"
+            )
         
         # Set up request parameters
         request_params = {
@@ -604,8 +655,9 @@ async def generate_ai_response(ai_request: AIRequest):
             "messages": messages
         }
         
-        # Add tools if enabled
-        if ai_request.enable_tools:
+        # Only add tools for text-only requests since most multimodal models
+        # don't fully support tool calling with images yet
+        if ai_request.enable_tools and not ai_request.content:
             request_params["tools"] = TOOLS
             logger.debug(f"AI request {request_id} using tools: {json.dumps([t['function']['name'] for t in TOOLS])}")
         
@@ -689,7 +741,7 @@ async def generate_ai_response(ai_request: AIRequest):
                 extra_body={},
                 model=ai_request.model,
                 messages=messages,
-                tools=TOOLS if ai_request.enable_tools else None
+                tools=TOOLS if ai_request.enable_tools and not ai_request.content else None
             )
             
             second_call_duration = time.time() - second_call_start
