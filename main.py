@@ -60,6 +60,23 @@ app = FastAPI(
     title="Real-Time SMS Gateway API",
     description="A FastAPI-based service for sending SMS messages through connected Android devices",
     version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "SMS",
+            "description": "SMS sending and management operations"
+        },
+        {
+            "name": "AI",
+            "description": "AI model integration for text and image analysis"
+        },
+        {
+            "name": "Devices",
+            "description": "Device management operations"
+        }
+    ],
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1}  # Hide schema section by default
 )
 
 # Generate a unique instance ID for this server instance
@@ -315,6 +332,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
     "/api/send-sms", 
     response_model=SMSResponse,
     summary="Send a new SMS message",
+    tags=["SMS"],
     description="""
     Sends an SMS message via connected Android devices. 
     
@@ -379,6 +397,7 @@ async def send_sms(sms_request: SMSRequest):
 @app.get(
     "/api/sms/{message_id}",
     summary="Get SMS message status",
+    tags=["SMS"],
     description="""
     Retrieves the current status of an SMS message by its ID.
     
@@ -406,6 +425,7 @@ async def get_sms_status(message_id: str):
 @app.get(
     "/api/sms",
     summary="List all SMS messages",
+    tags=["SMS"],
     description="""
     Lists all SMS messages with pagination support.
     
@@ -431,6 +451,7 @@ async def list_sms_messages(
 @app.get(
     "/api/devices",
     summary="List connected devices",
+    tags=["Devices"],
     description="""
     Lists all currently connected Android devices.
     
@@ -547,17 +568,42 @@ TOOL_MAPPING = {
 # AI API Request and response models
 class ImageContent(BaseModel):
     type: str = Field("image_url", description="Type of content, must be 'image_url'")
-    image_url: Dict[str, str] = Field(..., description="Image URL details")
+    image_url: Dict[str, str] = Field(..., description="Image URL details with 'url' key")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://example.com/image.jpg"
+                }
+            }
+        }
 
 class TextContent(BaseModel):
     type: str = Field("text", description="Type of content, must be 'text'")
     text: str = Field(..., description="Text content")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "type": "text",
+                "text": "What is in this image?"
+            }
+        }
 
 class AIRequest(BaseModel):
-    prompt: Optional[str] = Field(None, description="The text prompt to send to the AI model (legacy format)")
-    content: Optional[List[Union[ImageContent, TextContent, Dict[str, Any]]]] = Field(None, description="Content array for multimodal inputs")
-    model: str = Field(default="google/gemini-2.5-pro-exp-03-25:free", description="The AI model to use", example="google/gemini-2.5-pro-exp-03-25:free")
+    prompt: Optional[str] = Field(None, description="The text prompt to send to the AI model (text-only queries)")
+    content: Optional[List[Dict[str, Any]]] = Field(None, description="Content array for multimodal inputs (for image analysis)")
+    model: str = Field(default="google/gemini-2.5-pro-exp-03-25:free", description="The AI model to use")
     enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "prompt": "What is the capital of France?"
+            }
+        }
 
 class AIResponse(BaseModel):
     response: str = Field(..., description="The AI model's response to the prompt")
@@ -567,37 +613,48 @@ class AIResponse(BaseModel):
     "/api/ai/chat",
     response_model=AIResponse,
     summary="Get a response from an AI model",
+    tags=["AI"],
     description="""
     Sends a prompt to an AI model via OpenRouter and returns the response.
-    Supports tool calling using SerpAPI for Google search and image analysis.
     
-    Example curl command for text prompt:
-    ```
-    curl -X POST "http://localhost:8000/api/ai/chat" \\
-      -H "Content-Type: application/json" \\
-      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-2.5-pro-exp-03-25:free", "enable_tools": true}'
+    ## Simple Text Query Example
+    ```json
+    {
+      "prompt": "What is the capital of France?",
+      "model": "google/gemini-2.5-pro-exp-03-25:free",
+      "enable_tools": true
+    }
     ```
     
-    Example with image input:
-    ```
-    curl -X POST "http://localhost:8000/api/ai/chat" \\
-      -H "Content-Type: application/json" \\
-      -d '{
-        "content": [
-          {
-            "type": "text",
-            "text": "What is in this image?"
-          },
-          {
-            "type": "image_url",
-            "image_url": {
-              "url": "https://example.com/image.jpg"
-            }
+    ## Image Analysis Example
+    ```json
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "What is in this image?"
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "https://example.com/image.jpg"
           }
-        ],
-        "model": "google/gemini-2.5-pro-exp-03-25:free"
-      }'
+        }
+      ],
+      "model": "google/gemini-2.5-pro-exp-03-25:free"
+    }
     ```
+    
+    ## Notes:
+    - For text queries: Use the "prompt" field
+    - For image analysis: Use the "content" array format
+    - The "model" parameter is optional and defaults to "google/gemini-2.5-pro-exp-03-25:free"
+    - "enable_tools" enables Google search capabilities for text queries
+    
+    ## Features:
+    - Text question answering
+    - Image analysis and description
+    - Web search (for text queries only)
     """
 )
 async def generate_ai_response(ai_request: AIRequest):
