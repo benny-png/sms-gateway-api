@@ -592,18 +592,25 @@ class TextContent(BaseModel):
             }
         }
 
-class AIRequest(BaseModel):
-    prompt: Optional[str] = Field(None, description="The text prompt to send to the AI model (text-only queries)")
-    content: Optional[List[Dict[str, Any]]] = Field(None, description="Content array for multimodal inputs (for image analysis)")
+class SimpleAIRequest(BaseModel):
+    prompt: str = Field(..., description="The text prompt to send to the AI model")
     model: str = Field(default="google/gemini-2.5-pro-exp-03-25:free", description="The AI model to use")
     enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
     
     class Config:
         schema_extra = {
             "example": {
-                "prompt": "What is the capital of France?"
+                "prompt": "What is the capital of France?",
+                "model": "google/gemini-2.5-pro-exp-03-25:free",
+                "enable_tools": True
             }
         }
+
+class AIRequest(BaseModel):
+    prompt: Optional[str] = Field(None, description="The text prompt to send to the AI model")
+    model: str = Field(default="google/gemini-2.5-pro-exp-03-25:free", description="The AI model to use")
+    enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
+    content: Optional[List[Dict[str, Any]]] = Field(None, description="Content array for multimodal inputs")
 
 class AIResponse(BaseModel):
     response: str = Field(..., description="The AI model's response to the prompt")
@@ -656,6 +663,45 @@ class AIResponse(BaseModel):
     - Image analysis and description
     - Web search (for text queries only)
     """
+    # Override the schema for better Swagger UI display
+    , openapi_extra={"requestBody": {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "required": ["prompt"],
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": "The text prompt to send to the AI model",
+                            "example": "What is the capital of France?"
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "The AI model to use",
+                            "default": "google/gemini-2.5-pro-exp-03-25:free"
+                        },
+                        "enable_tools": {
+                            "type": "boolean",
+                            "description": "Whether to enable tool usage for this request",
+                            "default": True
+                        }
+                    }
+                },
+                "examples": {
+                    "Simple text query": {
+                        "summary": "Basic text question",
+                        "value": {
+                            "prompt": "What is the capital of France?",
+                            "model": "google/gemini-2.5-pro-exp-03-25:free",
+                            "enable_tools": True
+                        }
+                    }
+                }
+            }
+        }
+    }}
 )
 async def generate_ai_response(ai_request: AIRequest):
     request_id = str(uuid.uuid4())[:8]
