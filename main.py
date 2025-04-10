@@ -556,7 +556,7 @@ class TextContent(BaseModel):
 class AIRequest(BaseModel):
     prompt: Optional[str] = Field(None, description="The text prompt to send to the AI model (legacy format)")
     content: Optional[List[Union[ImageContent, TextContent, Dict[str, Any]]]] = Field(None, description="Content array for multimodal inputs")
-    model: str = Field(default="google/gemini-1.5-pro-latest:free", description="The AI model to use", example="google/gemini-1.5-pro-latest:free")
+    model: str = Field(default="google/gemini-2.5-pro-exp-03-25:free", description="The AI model to use", example="google/gemini-2.5-pro-exp-03-25:free")
     enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
 
 class AIResponse(BaseModel):
@@ -575,7 +575,7 @@ class AIResponse(BaseModel):
     ```
     curl -X POST "http://localhost:8000/api/ai/chat" \\
       -H "Content-Type: application/json" \\
-      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-1.5-pro-latest:free", "enable_tools": true}'
+      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-2.5-pro-exp-03-25:free", "enable_tools": true}'
     ```
     
     Example with image input:
@@ -595,7 +595,7 @@ class AIResponse(BaseModel):
             }
           }
         ],
-        "model": "google/gemini-1.5-pro-latest:free"
+        "model": "google/gemini-2.5-pro-exp-03-25:free"
       }'
     ```
     """
