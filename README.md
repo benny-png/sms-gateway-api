@@ -8,7 +8,6 @@ A FastAPI-based service that provides a WebSocket connection for Android devices
 - REST API for sending SMS messages and checking status
 - Device management and monitoring (battery level, signal strength)
 - Simple load balancing across connected devices
-- API key authentication for secure access
 - SQLite database for message storage
 
 ## Requirements
@@ -56,21 +55,12 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - `GET /api/devices` - List all connected devices
 - `WebSocket /ws/device/{device_id}` - WebSocket endpoint for device connections
 
-### Authentication
-
-All REST API endpoints require an API key provided in the header:
-
-```
-X-API-Key: your-secret-api-key
-```
-
 ### Example API Calls
 
 #### Sending an SMS
 
 ```bash
 curl -X POST "http://localhost:8000/api/send-sms" \
-  -H "X-API-Key: your-secret-api-key" \
   -H "Content-Type: application/json" \
   -d '{"phone_number": "+1234567890", "message": "Hello from the SMS Gateway!"}'
 ```
@@ -78,22 +68,19 @@ curl -X POST "http://localhost:8000/api/send-sms" \
 #### Checking SMS status
 
 ```bash
-curl -X GET "http://localhost:8000/api/sms/123e4567-e89b-12d3-a456-426614174000" \
-  -H "X-API-Key: your-secret-api-key"
+curl -X GET "http://localhost:8000/api/sms/123e4567-e89b-12d3-a456-426614174000"
 ```
 
 #### Listing SMS messages
 
 ```bash
-curl -X GET "http://localhost:8000/api/sms?limit=10&offset=0" \
-  -H "X-API-Key: your-secret-api-key"
+curl -X GET "http://localhost:8000/api/sms?limit=10&offset=0"
 ```
 
 #### Listing connected devices
 
 ```bash
-curl -X GET "http://localhost:8000/api/devices" \
-  -H "X-API-Key: your-secret-api-key"
+curl -X GET "http://localhost:8000/api/devices"
 ```
 
 ## Device Connection Protocol
@@ -131,13 +118,12 @@ The documentation includes:
 
 - **Development**: Run with reload flag for quick development
 - **Testing**: Use test fixtures instead of real device connections
-- **Production**: Set secure API keys and consider replacing SQLite with a more robust database for high-load environments
+- **Production**: Consider replacing SQLite with a more robust database for high-load environments
 
 ## Security Considerations
 
 For production use:
-- Store API keys securely in environment variables
-- Implement more robust authentication
+- Consider implementing authentication for API endpoints
 - Consider using a more scalable database like PostgreSQL for high loads
 - Encrypt WebSocket communications
 - Implement rate limiting
