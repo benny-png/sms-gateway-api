@@ -547,7 +547,7 @@ TOOL_MAPPING = {
 # AI API Request and response models
 class AIRequest(BaseModel):
     prompt: str = Field(..., description="The prompt to send to the AI model", example="What is the meaning of life?")
-    model: str = Field(default="google/gemini-1.5-pro:latest", description="The AI model to use", example="google/gemini-1.5-pro:latest")
+    model: str = Field(default="google/gemini-1.5-pro-latest:free", description="The AI model to use", example="google/gemini-1.5-pro-latest:free")
     enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
 
 class AIResponse(BaseModel):
@@ -566,7 +566,7 @@ class AIResponse(BaseModel):
     ```
     curl -X POST "http://localhost:8000/api/ai/chat" \\
       -H "Content-Type: application/json" \\
-      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-1.5-pro:latest", "enable_tools": true}'
+      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-1.5-pro-latest:free", "enable_tools": true}'
     ```
     """
 )
