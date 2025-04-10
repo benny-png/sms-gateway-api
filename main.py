@@ -547,7 +547,7 @@ TOOL_MAPPING = {
 # AI API Request and response models
 class AIRequest(BaseModel):
     prompt: str = Field(..., description="The prompt to send to the AI model", example="What is the meaning of life?")
-    model: str = Field(default="google/gemini-2.5-pro-exp-03-25:free", description="The AI model to use", example="google/gemini-2.5-pro-exp-03-25:free")
+    model: str = Field(default="google/gemini-1.5-pro:latest", description="The AI model to use", example="google/gemini-1.5-pro:latest")
     enable_tools: bool = Field(default=True, description="Whether to enable tool usage for this request")
 
 class AIResponse(BaseModel):
@@ -566,7 +566,7 @@ class AIResponse(BaseModel):
     ```
     curl -X POST "http://localhost:8000/api/ai/chat" \\
       -H "Content-Type: application/json" \\
-      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-2.5-pro-exp-03-25:free", "enable_tools": true}'
+      -d '{"prompt": "What is the capital of France?", "model": "google/gemini-1.5-pro:latest", "enable_tools": true}'
     ```
     """
 )
@@ -617,12 +617,31 @@ async def generate_ai_response(ai_request: AIRequest):
         
         first_call_duration = time.time() - first_call_start
         logger.debug(f"AI request {request_id} first API call completed in {first_call_duration:.2f}s")
+        logger.debug(f"AI request {request_id} raw response: {response}")
         
+        # Check if the response is valid
+        if not hasattr(response, 'choices') or not response.choices:
+            logger.warning(f"AI request {request_id} received empty choices in response")
+            return AIResponse(response="I apologize, but I couldn't generate a response at this time. Please try again later.")
+            
         # Get the response message
         response_message = response.choices[0].message
         
+        # Check if the message is valid
+        if not response_message or not hasattr(response_message, 'content'):
+            logger.warning(f"AI request {request_id} received invalid message in response")
+            return AIResponse(response="I apologize, but I couldn't generate a response at this time. Please try again later.")
+        
         # Add the LLM's response to messages
-        messages.append(response_message.model_dump())
+        try:
+            messages.append(response_message.model_dump())
+        except Exception as e:
+            logger.warning(f"AI request {request_id} failed to serialize message: {str(e)}")
+            # Fallback - create a simplified message dict
+            messages.append({
+                "role": "assistant",
+                "content": response_message.content
+            })
         
         # Check if the model wants to use a tool
         has_tool_calls = hasattr(response_message, 'tool_calls') and response_message.tool_calls
@@ -676,7 +695,12 @@ async def generate_ai_response(ai_request: AIRequest):
             second_call_duration = time.time() - second_call_start
             logger.debug(f"AI request {request_id} second API call completed in {second_call_duration:.2f}s")
             
-            final_response = second_response.choices[0].message.content
+            # Validate second response
+            if not hasattr(second_response, 'choices') or not second_response.choices:
+                logger.warning(f"AI request {request_id} received empty choices in second response")
+                return AIResponse(response="I apologize, but I couldn't generate a final response after using tools. Please try again later.")
+            
+            final_response = second_response.choices[0].message.content if hasattr(second_response.choices[0].message, 'content') else "No response content."
             
             total_duration = time.time() - start_time
             logger.info(f"AI request {request_id} completed in {total_duration:.2f}s (with tool use)")
@@ -690,7 +714,7 @@ async def generate_ai_response(ai_request: AIRequest):
             logger.info(f"AI request {request_id} completed in {total_duration:.2f}s")
             
             # No tool was used, return the first response
-            return AIResponse(response=response_message.content)
+            return AIResponse(response=response_message.content if hasattr(response_message, 'content') else "No response content.")
             
     except Exception as e:
         duration = time.time() - start_time
